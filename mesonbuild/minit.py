@@ -438,7 +438,7 @@ def create_meson_build(options):
     print('Generated meson.build file:\n\n' + content)
 
 def run(args):
-    parser = argparse.ArgumentParser(prog='meson')
+    parser = argparse.ArgumentParser(prog='meson init')
     parser.add_argument("srcfiles", metavar="sourcefile", nargs="*",
                         help="source files. default: all recognized files in current directory")
     parser.add_argument("-n", "--name", help="project name. default: name of current directory")
