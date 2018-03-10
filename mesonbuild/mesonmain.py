@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys, stat, traceback, argparse
+import sys, stat, traceback, argparse, time, pathlib
 import datetime
 import os.path
 from . import environment, interpreter, mesonlib
@@ -66,6 +66,10 @@ def create_parser():
     add_builtin_argument(p, 'warnlevel', dest='warning_level')
     add_builtin_argument(p, 'stdsplit', action='store_false')
     add_builtin_argument(p, 'errorlogs', action='store_false')
+    p.add_argument('-b', '--builddir', dest='builddir', default=None,
+                   help='Directory to create build files in.')
+    p.add_argument('-s', '--sourcedir', dest='sourcedir', default=None,
+                   help='Location of your meson.build file.')
     p.add_argument('--cross-file', default=None,
                    help='File describing cross compilation environment.')
     p.add_argument('-D', action='append', dest='projectoptions', default=[], metavar="option",
@@ -102,23 +106,23 @@ class MesonApp:
     def validate_core_dirs(self, dir1, dir2):
         ndir1 = os.path.abspath(os.path.realpath(dir1))
         ndir2 = os.path.abspath(os.path.realpath(dir2))
-        if not os.path.exists(ndir1):
-            os.makedirs(ndir1)
-        if not os.path.exists(ndir2):
-            os.makedirs(ndir2)
-        if not stat.S_ISDIR(os.stat(ndir1).st_mode):
-            raise RuntimeError('%s is not a directory' % dir1)
-        if not stat.S_ISDIR(os.stat(ndir2).st_mode):
-            raise RuntimeError('%s is not a directory' % dir2)
-        if os.path.samefile(dir1, dir2):
+        if pathlib.PurePath(ndir1) == pathlib.PurePath(ndir2):
             raise RuntimeError('Source and build directories must not be the same. Create a pristine build directory.')
         if self.has_build_file(ndir1):
             if self.has_build_file(ndir2):
                 raise RuntimeError('Both directories contain a build file %s.' % environment.build_filename)
-            return ndir1, ndir2
-        if self.has_build_file(ndir2):
-            return ndir2, ndir1
-        raise RuntimeError('Neither directory contains a build file %s.' % environment.build_filename)
+            (src_dir, build_dir) = ndir1, ndir2
+        elif self.has_build_file(ndir2):
+            (src_dir, build_dir) = ndir2, ndir1
+        else:
+            raise RuntimeError('Neither directory contains a build file %s.' % environment.build_filename)
+        if not os.path.exists(build_dir):
+            os.makedirs(build_dir)
+        if not stat.S_ISDIR(os.stat(src_dir).st_mode):
+            raise RuntimeError('%s is not a directory' % src_dir)
+        if not stat.S_ISDIR(os.stat(build_dir).st_mode):
+            raise RuntimeError('%s is not a directory' % build_dir)
+        return src_dir, build_dir
 
     def validate_dirs(self, dir1, dir2, handshake):
         (src_dir, build_dir) = self.validate_core_dirs(dir1, dir2)
@@ -133,6 +137,8 @@ class MesonApp:
                       '\nTo change option values, run meson configure instead.')
                 sys.exit(0)
         else:
+            if os.listdir(build_dir):
+                raise RuntimeError('Build directory is not empty.')
             if handshake:
                 raise RuntimeError('Something went terribly wrong. Please file a bug.')
         return src_dir, build_dir
@@ -273,12 +279,63 @@ def run_script_command(args):
         raise MesonException('Unknown internal command {}.'.format(cmdname))
     return cmdfunc(cmdargs)
 
+def determine_directories(options):
+    if not options.sourcedir and not options.builddir:
+        if os.path.exists('meson.build'):
+            mlog.log('Unable to determine build directory.\n')
+            mlog.log('Found meson.build, which means you are in a source directory.')
+            mlog.log('Meson writes all created files into a separate build directory to keep your source clean.')
+            mlog.log('Please specify a build directory with -b <builddir>. It will be created if needed.')
+            sys.exit(1)
+        elif os.path.exists('../meson.build'):
+            mlog.log('Found ../meson.build. Using .. as source and . as build directory.\n')
+            source_dir = '..'
+            build_dir = '.'
+        else:
+            # Not in a source directory, and running without
+            # arguments. Assume the user just wants to kick the tires.
+            print(cmdline_help.format(cmd=sys.argv[0]))
+            sys.exit(0)
+    elif options.sourcedir and not options.builddir:
+        source_dir = options.sourcedir
+        build_dir = '.'
+        mlog.log('Using . as build directory.\n')
+    elif options.builddir and not options.sourcedir:
+        if os.path.exists('meson.build'):
+            mlog.log('Found ./meson.build. Using . as source directory.\n')
+            source_dir = '.'
+        else:
+            mlog.log('meson.build not found. Specify the location of meson.build with -s <sourcedir>')
+            sys.exit(1)
+        build_dir = options.builddir
+    else:
+        source_dir = options.sourcedir
+        build_dir = options.builddir
+    return (source_dir, build_dir)
+
+def determine_directories_legacy(args):
+    if not args or len(args) > 2:
+        # if there's a meson.build in the dir above, and not in the current
+        # directory, assume we're in the build directory
+        if not args and not os.path.exists('meson.build') and os.path.exists('../meson.build'):
+            dir1 = '..'
+            dir2 = '.'
+        else:
+            print('{} setup <source directory> <build directory>'.format(sys.argv[0]))
+            print('If you omit either directory, the current directory is substituted.')
+            print('Run {} help for more information.'.format(sys.argv[0]))
+            sys.exit(1)
+    else:
+        dir1 = args[0]
+        if len(args) > 1:
+            dir2 = args[1]
+        else:
+            dir2 = '.'
+    return dir1, dir2
+
 cmdline_help = '''usage: {cmd} <command> [args]
 
-To generate build files in directory builddir:
-   {cmd} setup -d builddir
 
-Other commands:
    configure      Display or set build parameters.
    init           Set up a basic meson.build file.
    wrap           Manage dependencies with the Wrap system.
@@ -296,6 +353,22 @@ def run(original_args, mainfile=None):
         print('Please update your environment')
         return 1
     args = original_args[:]
+    cmd_name = ''
+
+    # Special-case internal commands.
+    if len(args) >= 2 and args[0] == '--internal':
+        if args[1] != 'regenerate':
+            script = args[1]
+            try:
+                sys.exit(run_script_command(args[1:]))
+            except MesonException as e:
+                mlog.error('Helper script {} failed: {}'.format(script, e))
+                sys.exit(1)
+        args = args[2:]
+        handshake = True
+    else:
+        handshake = False
+    
     if len(args) > 0:
         # First check if we want to run a subcommand.
         cmd_name = args[0]
@@ -303,10 +376,17 @@ def run(original_args, mainfile=None):
         # "help" is a special case: Since printing of the help may be
         # delegated to a subcommand, we edit cmd_name before executing
         # the rest of the logic here.
-        if cmd_name == 'help':
-            remaining_args += ['--help']
-            args = remaining_args
+        if cmd_name in ('help'):
+            if not remaining_args:
+                print(cmdline_help.format(cmd=sys.argv[0]))
+                return 0
+            # Cut out the 'help' and tack on --help at the end of the
+            # command line.
+            args += ['--help']
+            args = args[1:]
+            
             cmd_name = args[0]
+            remaining_args = args[1:]
         if cmd_name == 'test':
             return mtest.run(remaining_args)
         elif cmd_name == 'setup':
@@ -333,51 +413,31 @@ def run(original_args, mainfile=None):
             runpy.run_path(script_file, run_name='__main__')
             sys.exit(0)
 
-    # No special command? Do the basic setup/reconf.
-    if len(args) >= 2 and args[0] == '--internal':
-        if args[1] != 'regenerate':
-            script = args[1]
-            try:
-                sys.exit(run_script_command(args[1:]))
-            except MesonException as e:
-                mlog.error('\nError in {} helper script:'.format(script))
-                mlog.exception(e)
-                sys.exit(1)
-        args = args[2:]
-        handshake = True
-    else:
-        handshake = False
-
     parser = create_parser()
-
     args = mesonlib.expand_arguments(args)
     options = parser.parse_args(args)
     args = options.directories
-    if not args or len(args) > 2:
-        # if there's a meson.build in the dir above, and not in the current
-        # directory, assume we're in the build directory
-        if not args and not os.path.exists('meson.build') and os.path.exists('../meson.build'):
-            dir1 = '..'
-            dir2 = '.'
-        else:
-            print(cmdline_help.format(cmd=sys.argv[0]))
-            #print('Run {} --help for more information.'.format(sys.argv[0]))
-            return 1
+
+    if cmd_name == 'setup':
+        (dir1, dir2) = determine_directories_legacy(args)
+    elif len(args)>0:
+        mlog.warning("'{}' is not a recognized subcommand.\n".format(args[0]))
+        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is deprecated.")
+        mlog.log("Use", mlog.green("meson [-s<source directory>] [-b<build directory>]"),"instead to generate build files.")
+        mlog.log("For now, I'm assuming you meant to use the legacy syntax. Break now if you didn't.\n")
+        # If these messages are going to a terminal, delay a bit so that the user notices.
+        if sys.stdout.isatty():
+            time.sleep(2)
+        (dir1, dir2) = determine_directories_legacy(args)
     else:
-        dir1 = args[0]
-        if len(args) > 1:
-            dir2 = args[1]
-        else:
-            dir2 = '.'
+        (dir1, dir2) = determine_directories(options)
+
     try:
         if mainfile is None:
             raise AssertionError('I iz broken. Sorry.')
         app = MesonApp(dir1, dir2, mainfile, handshake, options, original_args)
     except Exception as e:
-        # Log directory does not exist, so just print
-        # to stdout.
-        print('Error during basic setup:\n')
-        print(e)
+        mlog.error('Error during basic setup:', e)
         return 1
     try:
         app.generate()
