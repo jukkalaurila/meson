@@ -335,10 +335,18 @@ def determine_directories_legacy(args):
 
 cmdline_help = '''usage: {cmd} <command> [args]
 
+To initialize a build directory based on meson.build in current directory:
+    mkdir build && cd build && {cmd}
+or:
+    {cmd} -bbuild
 
+Other common commands:
    configure      Display or set build parameters.
    init           Set up a basic meson.build file.
    wrap           Manage dependencies with the Wrap system.
+
+Advanced:
+   test           Run defined tests.
    rewrite        Alter meson.build programmatically
    introspect     Access meson.build data programmatically
 
