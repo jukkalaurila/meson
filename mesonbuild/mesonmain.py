@@ -273,6 +273,22 @@ def run_script_command(args):
         raise MesonException('Unknown internal command {}.'.format(cmdname))
     return cmdfunc(cmdargs)
 
+cmdline_help = '''usage: {cmd} <command> [args]
+
+To generate build files in directory builddir:
+   {cmd} setup -d builddir
+
+Other commands:
+   configure      Display or set build parameters.
+   init           Set up a basic meson.build file.
+   wrap           Manage dependencies with the Wrap system.
+   rewrite        Alter meson.build programmatically
+   introspect     Access meson.build data programmatically
+
+Run {cmd} help <command> for detailed help on <command>.
+Run {cmd} --help for a complete list of flags.
+'''
+
 def run(original_args, mainfile=None):
     if sys.version_info < (3, 5):
         print('Meson works correctly only with python 3.5+.')
@@ -344,9 +360,8 @@ def run(original_args, mainfile=None):
             dir1 = '..'
             dir2 = '.'
         else:
-            print('{} <source directory> <build directory>'.format(sys.argv[0]))
-            print('If you omit either directory, the current directory is substituted.')
-            print('Run {} --help for more information.'.format(sys.argv[0]))
+            print(cmdline_help.format(cmd=sys.argv[0]))
+            #print('Run {} --help for more information.'.format(sys.argv[0]))
             return 1
     else:
         dir1 = args[0]

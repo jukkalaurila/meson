@@ -30,7 +30,7 @@ Run this command in your top level source directory.
 
 Usage:
 
-%s <command> [options]
+%s wrap <command> [options]
 
 Commands:
 
