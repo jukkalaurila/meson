@@ -867,6 +867,7 @@ class AllPlatformTests(BasePlatformTests):
         if not isinstance(static_linker, mesonbuild.linkers.ArLinker):
             raise unittest.SkipTest('static linker is not `ar`')
         # Configure
+        self.wipe()
         self.init(testdir)
         # Get name of static library
         targets = self.introspect('--targets')
@@ -1241,6 +1242,7 @@ class AllPlatformTests(BasePlatformTests):
                           get_fake_options(self.prefix), [])
         if env.detect_c_compiler(False).get_id() == 'msvc':
             raise unittest.SkipTest('MSVC can\'t compile assembly')
+        self.wipe()
         self.init(testdir)
         commands = {'c-asm': {}, 'cpp-asm': {}, 'cpp-c-asm': {}, 'c-cpp-asm': {}}
         for cmd in self.get_compdb():
@@ -1511,6 +1513,8 @@ int main(int argc, char **argv) {
         else:
             object_suffix = 'o'
             shared_suffix = 'so'
+        self.wipe()
+        self.new_builddir()
         return (cc, stlinker, object_suffix, shared_suffix)
 
     def pbcompile(self, compiler, source, objectfile, extra_args=[]):
@@ -1528,6 +1532,7 @@ int main(int argc, char **argv) {
         objectfile = os.path.join(tdir, 'prebuilt.' + object_suffix)
         self.pbcompile(compiler, source, objectfile)
         try:
+            self.wipe()
             self.init(tdir)
             self.build()
             self.run_tests()
@@ -1764,6 +1769,7 @@ int main(int argc, char **argv) {
         self.assertFalse(os.path.isfile(promoted_wrap))
         subprocess.check_call(self.wrap_command + ['promote', 'athing'], cwd=workdir)
         self.assertTrue(os.path.isfile(promoted_wrap))
+        self.new_builddir()
         self.init(workdir)
         self.build()
 
@@ -1906,6 +1912,7 @@ class FailureTests(BasePlatformTests):
         # Force tracebacks so we can detect them properly
         os.environ['MESON_FORCE_BACKTRACE'] = '1'
         with self.assertRaisesRegex(MesonException, match, msg=contents):
+            self.wipe()
             # Must run in-process or we'll get a generic CalledProcessError
             self.init(self.srcdir, extra_args=extra_args, inprocess=True)
 
@@ -2417,6 +2424,7 @@ class LinuxlikeTests(BasePlatformTests):
                  (compiler.clang_type == mesonbuild.compilers.CLANG_OSX and version_compare(compiler.version, '<9.2')))):
                 continue
             std_opt = '{}={}'.format(lang_std, v)
+            self.new_builddir()
             self.init(testdir, ['-D' + std_opt])
             cmd = self.get_compdb()[0]['command']
             if v != 'none':
@@ -2433,6 +2441,7 @@ class LinuxlikeTests(BasePlatformTests):
         cmd_std = '-std=FAIL'
         env_flags = p.upper() + 'FLAGS'
         os.environ[env_flags] = cmd_std
+        self.new_builddir()
         self.init(testdir)
         cmd = self.get_compdb()[0]['command']
         qcmd_std = " {} ".format(cmd_std)
