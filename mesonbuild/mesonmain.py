@@ -298,7 +298,7 @@ def determine_directories_legacy(args):
 cmdline_help = '''usage: {cmd} <command> [args]
 
 To initialize a build directory based on meson.build in current directory:
-    mkdir build && cd build && {cmd} setup
+    mkdir build && cd build && {cmd}
 or:
     {cmd} setup build
 
@@ -396,10 +396,7 @@ def run(original_args, mainfile=None):
         mlog.log("Use", mlog.green("meson setup [<source directory>] [<build directory>]"),"instead to generate build files.")
         sys.exit(1)
     else:
-        # No command given. Previously we would have accepted the
-        # command as meaning "setup" with no args, reject now.
-        print(cmdline_help.format(cmd=sys.argv[0]))
-        return 0
+        (dir1, dir2) = determine_directories_legacy(args)
 
     try:
         if mainfile is None:
