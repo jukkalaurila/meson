@@ -313,26 +313,6 @@ def determine_directories(options):
         build_dir = options.builddir
     return (source_dir, build_dir)
 
-def determine_directories_legacy(args):
-    if not args or len(args) > 2:
-        # if there's a meson.build in the dir above, and not in the current
-        # directory, assume we're in the build directory
-        if not args and not os.path.exists('meson.build') and os.path.exists('../meson.build'):
-            dir1 = '..'
-            dir2 = '.'
-        else:
-            print('{} setup <source directory> <build directory>'.format(sys.argv[0]))
-            print('If you omit either directory, the current directory is substituted.')
-            print('Run {} help for more information.'.format(sys.argv[0]))
-            sys.exit(1)
-    else:
-        dir1 = args[0]
-        if len(args) > 1:
-            dir2 = args[1]
-        else:
-            dir2 = '.'
-    return dir1, dir2
-
 cmdline_help = '''usage: {cmd} <command> [args]
 
 To initialize a build directory based on meson.build in current directory:
@@ -398,6 +378,8 @@ def run(original_args, mainfile=None):
         if cmd_name == 'test':
             return mtest.run(remaining_args)
         elif cmd_name == 'setup':
+            print('The command "setup" is no longer supported.\n'
+                  'Use "meson -s sourcedir -b builddir" instead.')
             args = remaining_args
             # FALLTHROUGH like it's 1972.
         elif cmd_name == 'introspect':
@@ -426,17 +408,11 @@ def run(original_args, mainfile=None):
     options = parser.parse_args(args)
     args = options.directories
 
-    if cmd_name == 'setup':
-        (dir1, dir2) = determine_directories_legacy(args)
-    elif len(args)>0:
+    if len(args)>0:
         mlog.warning("'{}' is not a recognized subcommand.\n".format(args[0]))
-        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is deprecated.")
+        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is no longer supported.")
         mlog.log("Use", mlog.green("meson [-s<source directory>] [-b<build directory>]"),"instead to generate build files.")
-        mlog.log("For now, I'm assuming you meant to use the legacy syntax. Break now if you didn't.\n")
-        # If these messages are going to a terminal, delay a bit so that the user notices.
-        if sys.stdout.isatty():
-            time.sleep(2)
-        (dir1, dir2) = determine_directories_legacy(args)
+        sys.exit(1)
     else:
         (dir1, dir2) = determine_directories(options)
 
