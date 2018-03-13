@@ -66,10 +66,6 @@ def create_parser():
     add_builtin_argument(p, 'warnlevel', dest='warning_level')
     add_builtin_argument(p, 'stdsplit', action='store_false')
     add_builtin_argument(p, 'errorlogs', action='store_false')
-    p.add_argument('-b', '--builddir', dest='builddir', default=None,
-                   help='Directory to create build files in.')
-    p.add_argument('-s', '--sourcedir', dest='sourcedir', default=None,
-                   help='Location of your meson.build file.')
     p.add_argument('--cross-file', default=None,
                    help='File describing cross compilation environment.')
     p.add_argument('-D', action='append', dest='projectoptions', default=[], metavar="option",
@@ -279,40 +275,6 @@ def run_script_command(args):
         raise MesonException('Unknown internal command {}.'.format(cmdname))
     return cmdfunc(cmdargs)
 
-def determine_directories(options):
-    if not options.sourcedir and not options.builddir:
-        if os.path.exists('meson.build'):
-            mlog.log('Unable to determine build directory.\n')
-            mlog.log('Found meson.build, which means you are in a source directory.')
-            mlog.log('Meson writes all created files into a separate build directory to keep your source clean.')
-            mlog.log('Please specify a build directory with -b <builddir>. It will be created if needed.')
-            sys.exit(1)
-        elif os.path.exists('../meson.build'):
-            mlog.log('Found ../meson.build. Using .. as source and . as build directory.\n')
-            source_dir = '..'
-            build_dir = '.'
-        else:
-            # Not in a source directory, and running without
-            # arguments. Assume the user just wants to kick the tires.
-            print(cmdline_help.format(cmd=sys.argv[0]))
-            sys.exit(0)
-    elif options.sourcedir and not options.builddir:
-        source_dir = options.sourcedir
-        build_dir = '.'
-        mlog.log('Using . as build directory.\n')
-    elif options.builddir and not options.sourcedir:
-        if os.path.exists('meson.build'):
-            mlog.log('Found ./meson.build. Using . as source directory.\n')
-            source_dir = '.'
-        else:
-            mlog.log('meson.build not found. Specify the location of meson.build with -s <sourcedir>')
-            sys.exit(1)
-        build_dir = options.builddir
-    else:
-        source_dir = options.sourcedir
-        build_dir = options.builddir
-    return (source_dir, build_dir)
-
 def determine_directories_legacy(args):
     if not args or len(args) > 2:
         # if there's a meson.build in the dir above, and not in the current
@@ -336,9 +298,9 @@ def determine_directories_legacy(args):
 cmdline_help = '''usage: {cmd} <command> [args]
 
 To initialize a build directory based on meson.build in current directory:
-    mkdir build && cd build && {cmd}
+    mkdir build && cd build && {cmd} setup
 or:
-    {cmd} -bbuild
+    {cmd} setup build
 
 Other common commands:
    configure      Display or set build parameters.
@@ -430,15 +392,14 @@ def run(original_args, mainfile=None):
         (dir1, dir2) = determine_directories_legacy(args)
     elif len(args)>0:
         mlog.warning("'{}' is not a recognized subcommand.\n".format(args[0]))
-        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is deprecated.")
-        mlog.log("Use", mlog.green("meson [-s<source directory>] [-b<build directory>]"),"instead to generate build files.")
-        mlog.log("For now, I'm assuming you meant to use the legacy syntax. Break now if you didn't.\n")
-        # If these messages are going to a terminal, delay a bit so that the user notices.
-        if sys.stdout.isatty():
-            time.sleep(2)
-        (dir1, dir2) = determine_directories_legacy(args)
+        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is no longer supported.")
+        mlog.log("Use", mlog.green("meson setup [<source directory>] [<build directory>]"),"instead to generate build files.")
+        sys.exit(1)
     else:
-        (dir1, dir2) = determine_directories(options)
+        # No command given. Previously we would have accepted the
+        # command as meaning "setup" with no args, reject now.
+        print(cmdline_help.format(cmd=sys.argv[0]))
+        return 0
 
     try:
         if mainfile is None:
