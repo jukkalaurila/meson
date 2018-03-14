@@ -114,11 +114,17 @@ class MesonApp:
             raise RuntimeError('Neither directory %s or %s contains a build file %s.' %
                                (dir1, dir2, environment.build_filename))
         if not os.path.exists(build_dir):
-            os.makedirs(build_dir)
+            try:
+                os.makedirs(build_dir)
+            except IOError as e:
+                raise RuntimeError('Unable to create build directory %s: %s' %
+                                   (build_dir, e.strerror))
         if not stat.S_ISDIR(os.stat(src_dir).st_mode):
             raise RuntimeError('%s is not a directory' % src_dir)
         if not stat.S_ISDIR(os.stat(build_dir).st_mode):
             raise RuntimeError('%s is not a directory' % build_dir)
+        if not os.access(build_dir, os.W_OK):
+            raise RuntimeError('Directory %s is not writable' % build_dir)
         return src_dir, build_dir
 
     def validate_dirs(self, dir1, dir2, handshake):
