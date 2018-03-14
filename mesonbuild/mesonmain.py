@@ -111,7 +111,8 @@ class MesonApp:
         elif self.has_build_file(ndir2):
             (src_dir, build_dir) = ndir2, ndir1
         else:
-            raise RuntimeError('Neither directory contains a build file %s.' % environment.build_filename)
+            raise RuntimeError('Neither directory %s or %s contains a build file %s.' %
+                               (dir1, dir2, environment.build_filename))
         if not os.path.exists(build_dir):
             os.makedirs(build_dir)
         if not stat.S_ISDIR(os.stat(src_dir).st_mode):
@@ -337,7 +338,7 @@ def run(original_args, mainfile=None):
         handshake = True
     else:
         handshake = False
-    
+
     if len(args) > 0:
         # First check if we want to run a subcommand.
         cmd_name = args[0]
@@ -353,7 +354,7 @@ def run(original_args, mainfile=None):
             # command line.
             args += ['--help']
             args = args[1:]
-            
+
             cmd_name = args[0]
             remaining_args = args[1:]
         if cmd_name == 'test':
@@ -387,15 +388,15 @@ def run(original_args, mainfile=None):
     options = parser.parse_args(args)
     args = options.directories
 
-    if cmd_name == 'setup':
-        (dir1, dir2) = determine_directories_legacy(args)
-    elif len(args)>0:
+    if cmd_name != 'setup' and len(args) > 0:
         mlog.warning("'{}' is not a recognized subcommand.\n".format(args[0]))
-        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is no longer supported.")
-        mlog.log("Use", mlog.green("meson setup [<source directory>] [<build directory>]"),"instead to generate build files.")
-        sys.exit(1)
-    else:
-        (dir1, dir2) = determine_directories_legacy(args)
+        mlog.log("The syntax", mlog.red("meson [<source directory>] [<build directory>]"), "is deprecated.")
+        mlog.log("Use", mlog.green("meson setup [<source directory>] [<build directory>]"),
+                 "instead.")
+        mlog.log('For now, interpreting your command as:', mlog.green('meson setup {}'.format(' '.join(args))))
+        mlog.log("This will become an error in the future.\n")
+        time.sleep(1)
+    (dir1, dir2) = determine_directories_legacy(args)
 
     try:
         if mainfile is None:
