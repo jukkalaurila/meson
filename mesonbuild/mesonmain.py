@@ -283,10 +283,8 @@ def determine_directories_legacy(args):
             dir1 = '..'
             dir2 = '.'
         else:
-            print('{} setup <source directory> <build directory>'.format(sys.argv[0]))
-            print('If you omit either directory, the current directory is substituted.')
-            print('Run {} help for more information.'.format(sys.argv[0]))
-            sys.exit(1)
+            print(cmdline_help.format(cmd=sys.argv[0]))
+            sys.exit(0)
     else:
         dir1 = args[0]
         if len(args) > 1:
@@ -302,7 +300,8 @@ To initialize a build directory based on meson.build in current directory:
 or:
     {cmd} setup build
 
-Other common commands:
+Common commands:
+   setup          Initialize a build directory.
    configure      Display or set build parameters.
    init           Set up a basic meson.build file.
    wrap           Manage dependencies with the Wrap system.
