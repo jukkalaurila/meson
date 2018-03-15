@@ -104,15 +104,10 @@ class MesonApp:
         ndir2 = os.path.abspath(os.path.realpath(dir2))
         if pathlib.PurePath(ndir1) == pathlib.PurePath(ndir2):
             raise RuntimeError('Source and build directories must not be the same. Create a pristine build directory.')
-        if self.has_build_file(ndir1):
-            if self.has_build_file(ndir2):
-                raise RuntimeError('Both directories contain a build file %s.' % environment.build_filename)
-            (src_dir, build_dir) = ndir1, ndir2
-        elif self.has_build_file(ndir2):
-            (src_dir, build_dir) = ndir2, ndir1
-        else:
-            raise RuntimeError('Neither directory %s or %s contains a build file %s.' %
-                               (dir1, dir2, environment.build_filename))
+        if not self.has_build_file(ndir1):
+            raise RuntimeError('Source directory does not contain a build file %s.' % environment.build_filename)
+        src_dir, build_dir = ndir1, ndir2
+
         if not os.path.exists(build_dir):
             try:
                 os.makedirs(build_dir)
@@ -305,7 +300,7 @@ cmdline_help = '''usage: {cmd} <command> [args]
 To initialize a build directory based on meson.build in current directory:
     mkdir build && cd build && {cmd}
 or:
-    {cmd} setup build
+    {cmd} setup . build
 
 Common commands:
    setup          Initialize a build directory.
